@@ -1,6 +1,6 @@
 # HTF-Candles-Pivots
 
-## Next
+## v6.0
 - Added an option "Bar colors"
 - アラートの復旧
 
