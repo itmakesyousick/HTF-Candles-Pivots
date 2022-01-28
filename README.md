@@ -1,7 +1,7 @@
 # HTF-Candles-Pivots
 
 ## Next
-- Added an option "Bar color"
+- Added an option "Bar colors"
 
 ## v5.0
 - ローソク足の線の太さを調整できるオプションを追加
