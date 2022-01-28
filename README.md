@@ -1,4 +1,6 @@
 # HTF-Candles-Pivots
+## v7.0
+- Added 15 and 30 options to the Timeframe.
 
 ## v6.0
 - Added an option "Bar colors"
