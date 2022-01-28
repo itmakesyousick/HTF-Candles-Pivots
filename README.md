@@ -2,6 +2,7 @@
 
 ## Next
 - Added an option "Bar colors"
+- アラートの復旧
 
 ## v5.0
 - ローソク足の線の太さを調整できるオプションを追加
