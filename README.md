@@ -1,4 +1,8 @@
 # HTF-Candles-Pivots
+## Next
+- Wickの太さの最低2から1に変更
+- Added an option "Fill negative bar"
+
 ## v7.0
 - Added 15 and 30 options to the Timeframe.
 
