@@ -41,7 +41,7 @@ t_BC = 'BC'
 t_TC = 'TC'
 
 f_price = '{0,number,#.#####}'
-f_pip = '{0,number,#.#}'
+f_pip = '{0,number,#.#} pips'
 
 //////////////////////
 // Functions
@@ -72,14 +72,14 @@ i_color_4 = input.color(color.orange, '', inline='color', group=GP2)
 // HTF Candle
 // =============
 i_htf_display = input.string(t_htf_display_option2, "Display", options=[t_htf_display_option1, t_htf_display_option2, t_htf_display_option3, 'None'], inline='htf_display', group=GP3)
-i_htf_width = input.int(1, '', minval=1, inline='htf_display', group=GP3)
+i_htf_width = input.int(2, '', minval=1, inline='htf_display', group=GP3)
 i_htf_line_transp = 10
 i_htf_bg_transp = 96
 i_htf_show_wick = input.bool(true, "Wick", inline='htf_display', group=GP3)
 i_htf_show_wick := i_htf_display == t_htf_display_option3 ? false : i_htf_show_wick
 i_htf_show_candle = not (i_htf_display == 'None')
 i_htf_extend = true
-i_htf_access = input.string(t_htf_access_option3, "History", options=[t_htf_access_option3, t_htf_access_option1, t_htf_access_option2, t_htf_access_option4], group=GP3)
+i_htf_access = input.string(t_htf_access_option4, "History", options=[t_htf_access_option3, t_htf_access_option1, t_htf_access_option2, t_htf_access_option4], group=GP3)
 
 // Wick style
 i_htf_wick_thickness = math.max(2, i_htf_width)
@@ -90,7 +90,8 @@ i_label_chg = input.string(YES_PRICE, "", options=[YES_PRICE, YES_PIPS], inline=
 i_label_size = input.string(size.small, '', options=[size.auto, size.tiny, size.small, size.normal, size.large, size.huge], inline='htf_labels', group=GP3)
 i_label_position = label.style_label_upper_left
 
-i_htf_show_barcolor = input.bool(false, "Bar colors", group=GP3)
+i_htf_show_barcolor = input.bool(false, "Bar colors(Shift mode only)", group=GP3)
+i_htf_show_barcolor :=  i_htf_access == t_htf_access_option4 ? i_htf_show_barcolor : false
 
 // Pivots
 // =============
@@ -109,18 +110,20 @@ i_pivots_label = input.string('Pivot levels', '', options=['Pivot levels', 'Pric
 i_show_pivots = (i_pivots_history == t_history_option3) ? false : true
 i_show_cpr = input.bool(false, 'CPR', inline='pivots_display', group=GP1)
 i_show_zone = input.bool(true, 'Background color', inline='pivots_display', group=GP1)
+i_show_forecast = input.bool(false, 'Forecast', inline='pivots_display', group=GP1)
 i_zone_transp = 96
 
 if i_pivots_type == 'Traditional' or i_pivots_type == 'DM'
     i_show_zone := false
 
-i_forecast_pivots = true
+i_forecast_pivots = i_show_forecast
 
-if (not i_show_pivots) or (i_pivots_history == t_history_option2)
+if (not i_show_pivots) //or (i_pivots_history == t_history_option2)
     i_forecast_pivots := false
 
-if (i_htf_access == t_htf_access_option4) and (i_pivots_history == t_history_option2)
+if i_forecast_pivots and (i_htf_access == t_htf_access_option4) and (i_pivots_history == t_history_option2)
     i_forecast_pivots := true
+
 
 // Forecast
 
@@ -252,12 +255,10 @@ f_render_pivots (_show, _show_labels, _xloc, _update=false, _x1=0, _x2=0, _shoul
                 f_render_label(i_show_cpr, label_x, TC, t_TC, color.new(c_CPR, 30), label_style, _xloc, is_visible_CPR)
 
 f_render_pivots(i_show_pivots, show_labels, xloc.bar_time, false, 0, 0, false)
-//plotshape(ta.change(time(htf)), style=shape.xcross, location=location.bottom, size=size.tiny)
 
 ///////////////
 // HTF Candle
 ///////////////
-
 f_label (_name, _chg) =>
     t = array.new_string(1, _name)
 
@@ -272,7 +273,12 @@ f_candle (_x1, _y1, _x2, _y2, _border_color, _bgcolor, _width, _style, _xloc) =>
     box.new(_x1, _y1, _x2, _y2, _border_color, _width, _style, extend.none, _xloc, _bgcolor)
 
 f_process_candles(_show, _access, _display, _htf, _bullC, _bearC, _trans, _btransp, _width, _extend, _show_labels, _show_wick) =>
+    // for exports variables
     var color v_barcolor = na
+    var plot_o = 0.0
+    var plot_c = 0.0
+    var plot_h = 0.0
+    var plot_l = 0.0
 
     if _show
         shift = _access == t_htf_access_option4 ? 1 : 0
@@ -343,6 +349,9 @@ f_process_candles(_show, _access, _display, _htf, _bullC, _bearC, _trans, _btran
                     h := line.new(wick_x, H0[shift], wick_x, math.max(O0[shift], C0[shift]), color=color.new(color01[shift], wick_transp), width=wick_thickness, xloc=xloc.bar_index)
                     l := line.new(wick_x, L0[shift], wick_x, math.min(O0[shift], C0[shift]), color=color.new(color01[shift], wick_transp), width=wick_thickness, xloc=xloc.bar_index)
 
+                plot_o := O0[shift], plot_c := C0[shift]
+                plot_h := H0[shift], plot_l := L0[shift]
+
             // Previous only / All / Shift
             if _access == t_htf_access_option2 or _access == t_htf_access_option3 or _access == t_htf_access_option4
                 if _display == t_htf_display_option3 or _display == t_htf_display_option1
@@ -383,6 +392,9 @@ f_process_candles(_show, _access, _display, _htf, _bullC, _bearC, _trans, _btran
                     box.set_extend(saved_hl, extend.right)
                     box.set_extend(saved_oc, extend.right)
 
+                plot_o := O1[shift], plot_c := C1[shift]
+                plot_h := H1[shift], plot_l := L1[shift]
+
             true
         else
             if _access == t_htf_access_option1 or _access == t_htf_access_option3
@@ -411,6 +423,9 @@ f_process_candles(_show, _access, _display, _htf, _bullC, _bearC, _trans, _btran
                     label.set_text(p, v_note)
                     label.set_textcolor(p, color.new(color01, i_label_transp))
 
+                plot_o := O0, plot_c := C0
+                plot_h := H0, plot_l := L0
+
             if _access == t_htf_access_option4
                 box.set_left(forecast_oc, forecast_x1)
                 box.set_right(forecast_oc, forecast_x2)
@@ -437,12 +452,25 @@ f_process_candles(_show, _access, _display, _htf, _bullC, _bearC, _trans, _btran
                 line.set_color(forecast_l, color.new(color01, wick_transp))
 
                 f_render_pivots(i_forecast_pivots, false, xloc.bar_index, true, forecast_x1, forecast_x2, true)
-        
+
             true
-    v_barcolor
 
-v_barcolor = f_process_candles(i_htf_show_candle, i_htf_access, i_htf_display, htf, i_bullC, i_bearC, i_htf_bg_transp, i_htf_line_transp, i_htf_width, i_htf_extend, i_label_show, i_htf_show_wick)
+    [plot_o, plot_h, plot_l, plot_c, v_barcolor]
 
-barcolor(i_htf_show_barcolor and (i_htf_access == t_htf_access_option4 or i_htf_access == t_htf_access_option2) ? v_barcolor : na)
+[o, h, l, c, v_barcolor] = f_process_candles(i_htf_show_candle, i_htf_access, i_htf_display, htf, i_bullC, i_bearC, i_htf_bg_transp, i_htf_line_transp, i_htf_width, i_htf_extend, i_label_show, i_htf_show_wick)
 
-
+///////////////
+// Plotting
+///////////////
+plot(o, 'HTF Open', linewidth=2, display=display.none)
+plot(h, 'HTF High', linewidth=2, display=display.none)
+plot(l, 'HTF Low', linewidth=2, display=display.none)
+plot(c, 'HTF Close', linewidth=2, display=display.none)
+plot(close, 'Price', linewidth=1, display=display.none)
+plotshape(ta.cross(o, close) ? o : na, 'Crossed open', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape(ta.cross(h, close) ? h : na, 'Crossed high', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape(ta.cross(l, close) ? l : na, 'Crossed low', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape(ta.cross(c, close) ? c : na, 'Crossed close', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape((i_htf_access == t_htf_access_option1 or i_htf_access == t_htf_access_option3) and ta.change(h) > 0, 'New high', style=shape.labelup, color=color.blue, location=location.bottom, size=size.tiny, display=display.none)  // Work on 'new only' or 'All'
+plotshape((i_htf_access == t_htf_access_option1 or i_htf_access == t_htf_access_option3) and ta.change(l) < 0, 'New low', style=shape.labeldown, color=color.red, location=location.bottom, size=size.tiny, display=display.none)   // Work on 'new only' or 'All'
+barcolor(i_htf_show_barcolor ? v_barcolor : na)
