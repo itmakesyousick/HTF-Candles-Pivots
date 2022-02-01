@@ -1,6 +1,8 @@
 # HTF-Candles-Pivots
-## v8.0
+## v10.0
 - Added a label on Forecast
+
+## v9.0
 - Added an option "Fill negative bar"
 - Wick thickness minimum changed from 2 to 1
 
