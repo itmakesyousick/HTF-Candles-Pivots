@@ -1,7 +1,8 @@
 # HTF-Candles-Pivots
-## Next
-- Wickの太さの最低2から1に変更
+## v8.0
+- Added a label on Forecast
 - Added an option "Fill negative bar"
+- Wick thickness minimum changed from 2 to 1
 
 ## v7.0
 - Added 15 and 30 options to the Timeframe.
