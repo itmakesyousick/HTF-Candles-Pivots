@@ -1,0 +1,493 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © boitoki
+
+//@version=5
+indicator('HTF Candles & Pivots', 'HTF', overlay=true, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+import boitoki/AwesomeColor/3 as ac
+import boitoki/Pivots/4 as f
+
+//////////////////////
+// Define
+//////////////////////
+GP1 = 'Pivots'
+GP2 = 'General'
+GP3 = 'HTF Candle'
+GP4 = 'Forecast (Shift mode only)'
+YES_PRICE = 'Price'
+YES_PIPS = 'Pips'
+t_htf_access_option1 = "New only"
+t_htf_access_option2 = "Previous only"
+t_htf_access_option3 = "All"
+t_htf_access_option4 = "Shift previous to current"
+t_htf_display_option1 ='Both'
+t_htf_display_option2 = 'Open-Close'
+t_htf_display_option3 = 'High-Low'
+icon_separator = ' • '
+nonecolor = color.new(color.black, 100)
+
+t_PP = 'PP'
+t_R5 = 'R⁵'
+t_R4 = 'R⁴'
+t_R3 = 'R³'
+t_R2 = 'R²'
+t_R1 = 'R¹'
+t_S1 = 'S¹'
+t_S2 = 'S²'
+t_S3 = 'S³'
+t_S4 = 'S⁴'
+t_S5 = 'S⁵'
+t_BC = 'BC'
+t_TC = 'TC'
+
+f_price = '{0,number,#.#####}'
+f_pip = '{0,number,#.#} pips'
+
+//////////////////////
+// Functions
+//////////////////////
+f_pipfy (_v) => _v / (syminfo.mintick * 10)
+
+f_pricefy (_p) => _p * (syminfo.mintick * 10)
+
+f_color (_name, _a, _b, _c, _d, _e, _f) =>
+    switch _name
+        'monokai' => _a
+        'monokaipro' => _b
+        'panda' => _c
+        'mono' => _d
+        'custom' => _f
+        => _e
+
+f_ab (_cond, _a, _b) => _cond ? _a : _b
+
+//////////////////////
+// Inputs
+//////////////////////
+i_htf_type = input.string('Auto', 'Timeframe', options=['15', '30', '60', '120', '240', '360', '720', 'D', 'W', 'M', '6M', '12M', 'Auto'], group=GP2)
+i_color_name = input.string('monokai', 'Color', options=['monokai', 'monokaipro', 'panda', 'mono', 'default', 'custom'], inline='color', group=GP2)
+i_color_1 = input.color(color.green, '', inline='color', group=GP2)
+i_color_2 = input.color(color.red, '', inline='color', group=GP2)
+i_color_3 = input.color(color.purple, '', inline='color', group=GP2)
+i_color_4 = input.color(color.orange, '', inline='color', group=GP2)
+
+// HTF Candle
+// =============
+i_htf_display = input.string(t_htf_display_option2, "Display", options=[t_htf_display_option1, t_htf_display_option2, t_htf_display_option3, 'None'], inline='htf_display', group=GP3)
+i_htf_width = input.int(2, '', minval=1, inline='htf_display', group=GP3)
+i_htf_line_transp = 10
+i_htf_bg_transp = 96
+i_htf_show_wick = input.bool(true, "Wick", inline='htf_display', group=GP3)
+i_htf_show_wick := i_htf_display == t_htf_display_option3 ? false : i_htf_show_wick
+i_htf_show_candle = not (i_htf_display == 'None')
+i_htf_extend = true
+i_htf_access = input.string(t_htf_access_option4, "History", options=[t_htf_access_option3, t_htf_access_option1, t_htf_access_option2, t_htf_access_option4], group=GP3)
+
+// Wick style
+i_htf_wick_thickness = i_htf_width
+i_htf_wick_transp = 3
+
+i_label_show = input.bool(false, "Show labels", inline='htf_labels', group=GP3)
+i_label_chg = input.string(YES_PRICE, "", options=[YES_PRICE, YES_PIPS], inline='htf_labels', group=GP3)
+i_label_size = input.string(size.small, '', options=[size.auto, size.tiny, size.small, size.normal, size.large, size.huge], inline='htf_labels', group=GP3)
+i_label_position = label.style_label_upper_left
+
+i_htf_show_barcolor = input.bool(false, "Bar colors (Work on \"Shift previous\")", group=GP3)
+i_htf_show_barcolor :=  i_htf_access == t_htf_access_option4 ? i_htf_show_barcolor : false
+
+i_candle_fill_negativebar = input.bool(false, "Fill negative bar (Work on \"All\" or \"New only\")", group=GP3)
+i_candle_fill_negativebar := (i_htf_access == t_htf_access_option4 or i_htf_access == t_htf_access_option2) ? false : i_candle_fill_negativebar
+
+// Pivots
+// =============
+t_history_option1 = 'All'
+t_history_option2 = 'New only'
+t_history_option3 = 'None'
+i_pivots_type = input.string('Traditional', 'Type', options=['Traditional', 'Fibonacci', 'Woodie', 'Classic', 'DM', 'Camarilla', 'Expected Pivot Points'], group=GP1)
+i_pivots_history = input.string(t_history_option2, 'History', options=[t_history_option1, t_history_option2, t_history_option3], group=GP1)
+i_line_style = input.string(line.style_solid, 'Line style', options=[line.style_solid, line.style_dotted, line.style_dashed], group=GP1) 
+i_line_width = 1
+i_line_transp = 30
+i_pivots_label_show = input.bool(false, 'Show labels', inline='pivot_label', group=GP1)
+i_pivots_label_position = input.string('Left', '', options=['Right', 'Left'], inline='pivot_label', group=GP1)
+i_pivots_label = input.string('Pivot levels', '', options=['Pivot levels', 'Price'], inline='pivot_label', group=GP1)
+
+i_show_pivots = (i_pivots_history == t_history_option3) ? false : true
+i_show_cpr = input.bool(false, 'CPR', inline='pivots_display', group=GP1)
+i_show_zone = input.bool(true, 'Background color', inline='pivots_display', group=GP1)
+i_show_forecast = input.bool(false, 'Forecast', inline='pivots_display', group=GP1)
+i_zone_transp = 96
+
+if i_pivots_type == 'Traditional' or i_pivots_type == 'DM'
+    i_show_zone := false
+
+i_forecast_pivots = i_show_forecast
+
+if (not i_show_pivots)
+    i_forecast_pivots := false
+
+if i_forecast_pivots and (i_htf_access == t_htf_access_option4) and (i_pivots_history == t_history_option2)
+    i_forecast_pivots := true
+
+
+// Forecast
+
+//////////////////////
+// Colors
+//////////////////////
+c_none  = nonecolor
+i_bullC = f_color(i_color_name, ac.monokai('green'), ac.monokaipro('green'), ac.panda('green'), ac.panda('light-gray'), ac.tradingview_flag('green'), i_color_1)
+i_bearC = f_color(i_color_name, ac.monokai('pink'),  ac.monokaipro('pink'),  ac.panda('red'),   ac.panda('dark-gray'),  ac.tradingview_flag('red'), i_color_2)
+c_PP    = f_color(i_color_name, ac.monokai('purple'), ac.monokaipro('purple'), ac.panda('purple'), ac.panda('dark-gray'), ac.tradingview_flag('purple'), i_color_3)
+c_RX    = f_color(i_color_name, ac.monokai('orange'), ac.monokaipro('orange'), ac.panda('orange'), ac.panda('gray'), ac.tradingview_flag('orange'), i_color_4)
+c_SX    = c_RX
+c_CPR   = c_PP
+
+//////////////////////
+// Calc
+//////////////////////
+// Show
+show_labels = i_pivots_label_show
+show_price = i_pivots_label == 'Price'
+show_targetlevel = true
+show_history = i_pivots_history == t_history_option1
+
+htf = i_htf_type == 'Auto' ? timeframe.isintraday ? timeframe.multiplier < 60 ? 'D' : timeframe.multiplier < 240 ? 'W' : 'M' : timeframe.period == 'D' ? '6M' : '12M' : i_htf_type
+
+
+//////////////////////
+// Plotting
+//////////////////////
+f_render_label (_show, _x, _y, _text, _color, _style, _xloc, _visible) =>
+    var label my_label = na
+    
+    if _show
+        v_price = show_price ? str.format(' ({0,number,#.###})', _y) : ''
+        v_text = _text + v_price
+        my_label := label.new(_x, _y, v_text, textcolor=_visible ? _color : c_none, color=c_none, style=_style, size=size.normal, xloc=_xloc)
+        
+        if not show_history
+            label.delete(my_label[1])
+    
+f_render_line (_show, _x1, _y, _x2, _width, _color, _style, _xloc, _visible, _should_delete) =>
+    var line my_line = na
+    
+    if _show and _y > 0
+        my_line := line.new(_x1, _y, _x2, _y, width=_width, color=_visible ? color.new(_color, i_line_transp) : c_none, style=_style, xloc=_xloc)
+    
+        if (not show_history) or _should_delete
+            line.delete(my_line[1])
+
+    my_line
+
+f_render_box (_show, _x1, _y1, _x2, _y2, _color, _xloc, _visible, _should_delete) =>
+    var box my_box = na
+    
+    if _show
+        my_box := box.new(_x1, _y1, _x2, _y2, bgcolor=_visible ? color.new(_color, i_zone_transp) : c_none, border_color=c_none, xloc=_xloc)
+
+        if (not show_history) or _should_delete
+            box.delete(my_box[1])
+
+f_render_pivots (_show, _show_labels, _xloc, _update=false, _x1=0, _x2=0, _should_delete=false) =>
+    if _show
+        time_x1  = 0
+        time_x2  = 0
+        offset = 0
+
+        if _xloc == xloc.bar_time
+            time_x11  = ta.valuewhen(ta.change(time(htf)), time, 1)
+            time_x1  := ta.valuewhen(ta.change(time(htf)), time, 0)
+            offset   := math.round(ta.change(time))
+            time_x2  := (2 * time_x1 - time_x11) - offset
+        else
+            time_x1  := _x1
+            time_x2  := _x2
+    
+        [O1, H1, L1, C1, O0, H0, L0, C0] = f.htf_ohlc(htf)
+
+        O = f_ab(_update, O0, O1)
+        H = f_ab(_update, H0, H1)
+        L = f_ab(_update, L0, L1)
+        C = f_ab(_update, C0, C1)
+
+        [PP, R1, S1, R2, S2, R3, S3, R4, S4, R5, S5] = f.pivots(i_pivots_type, O, H, L, C)
+        [BC, TC, CPR] = f.cpr(H, L, C)
+        is_visible_CPR = true
+    
+        if ta.change(time(htf)) or _update
+            // Lines
+            f_render_line(true, time_x1, PP, time_x2, math.max(2, i_line_width), c_PP, line.style_solid, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, R1, time_x2, i_line_width, c_RX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, R2, time_x2, i_line_width, c_RX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, R3, time_x2, i_line_width, c_RX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, R4, time_x2, i_line_width, c_RX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, R5, time_x2, i_line_width, c_RX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, S1, time_x2, i_line_width, c_SX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, S2, time_x2, i_line_width, c_SX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, S3, time_x2, i_line_width, c_SX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, S4, time_x2, i_line_width, c_SX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(true, time_x1, S5, time_x2, i_line_width, c_SX, i_line_style, _xloc, true, _should_delete)
+            f_render_line(i_show_cpr, time_x1, BC, time_x2, 1, c_CPR, line.style_dotted, _xloc, is_visible_CPR, _should_delete)
+            f_render_line(i_show_cpr, time_x1, TC, time_x2, 1, c_CPR, line.style_dotted, _xloc, is_visible_CPR, _should_delete)
+            
+            // Boxes
+            if i_show_zone
+                f_render_box(true, time_x1, R1, time_x2, R2, c_RX, _xloc, true, _should_delete)
+                f_render_box(true, time_x1, R3, time_x2, R4, c_RX, _xloc, true, _should_delete)
+                f_render_box(true, time_x1, S1, time_x2, S2, c_SX, _xloc, true, _should_delete)
+                f_render_box(true, time_x1, S3, time_x2, S4, c_SX, _xloc, true, _should_delete)
+                f_render_box(i_show_cpr, time_x1, BC, time_x2, TC, c_CPR, _xloc, is_visible_CPR, _should_delete)
+    
+            // Labels
+            if _show_labels
+                label_x     = i_pivots_label_position == 'Left' ? time_x1 : time_x2
+                label_style = i_pivots_label_position == 'Left' ? label.style_label_right : label.style_label_left
+                f_render_label(true, label_x, PP, t_PP, color.new(c_PP, 20), label_style, _xloc, true)
+                f_render_label(true, label_x, R5, t_R5, color.new(c_RX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, R4, t_R4, color.new(c_RX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, R3, t_R3, color.new(c_RX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, R2, t_R2, color.new(c_RX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, R1, t_R1, color.new(c_RX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, S1, t_S1, color.new(c_SX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, S2, t_S2, color.new(c_SX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, S3, t_S3, color.new(c_SX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, S4, t_S4, color.new(c_SX, 30), label_style, _xloc, true)
+                f_render_label(true, label_x, S5, t_S5, color.new(c_SX, 30), label_style, _xloc, true)
+                f_render_label(i_show_cpr, label_x, BC, t_BC, color.new(c_CPR, 30), label_style, _xloc, is_visible_CPR)
+                f_render_label(i_show_cpr, label_x, TC, t_TC, color.new(c_CPR, 30), label_style, _xloc, is_visible_CPR)
+
+f_render_pivots(i_show_pivots, show_labels, xloc.bar_time, false, 0, 0, false)
+
+///////////////
+// HTF Candle
+///////////////
+f_label (_name, _chg) =>
+    t = array.new_string(1, _name)
+
+    chg_text = i_label_chg == YES_PRICE 
+      ? str.format(f_price, _chg)
+      : str.format(f_pip, f_pipfy(_chg))
+
+    array.push(t, chg_text)
+    array.join(t, icon_separator)
+
+f_candle (_x1, _y1, _x2, _y2, _border_color, _bgcolor, _width, _style, _xloc) =>
+    box.new(_x1, _y1, _x2, _y2, _border_color, _width, _style, extend.none, _xloc, _bgcolor)
+
+f_process_candles(_show, _access, _display, _htf, _bullC, _bearC, _trans, _btransp, _width, _extend, _show_labels, _show_wick) =>
+    // for exports variables
+    var color v_barcolor = na
+    var plot_o = 0.0
+    var plot_c = 0.0
+    var plot_h = 0.0
+    var plot_l = 0.0
+
+    if _show
+        shift = _access == t_htf_access_option4 ? 1 : 0
+    
+        [O1, H1, L1, C1, O0, H0, L0, C0] = f.htf_ohlc(_htf)
+
+        color0  = O0 < C0 ? color.new(_bullC, _trans)   : color.new(_bearC, _trans)
+        color01 = O0 < C0 ? color.new(_bullC, _btransp) : color.new(_bearC, _btransp)
+        color1  = O1 < C1 ? color.new(_bullC, _trans)   : color.new(_bearC, _trans)
+        color11 = O1 < C1 ? color.new(_bullC, _btransp) : color.new(_bearC, _btransp)
+        
+        i_hl_bg_transp = 98
+        i_oc0_bg_transp = 94
+        i_oc1_bg_transp = 94
+        i_label_transp = 10
+
+        if i_candle_fill_negativebar
+            i_oc0_bg_transp := O0 > C0 ? 0 : i_oc0_bg_transp
+            i_oc1_bg_transp := O1 > C1 ? 0 : i_oc1_bg_transp
+
+        v_barcolor := hlc3 > H1[shift] ? _bullC : hlc3 < L1[shift] ? _bearC : na
+
+        var box hl = na
+        var box oc = na
+        var line h = na
+        var line l = na
+        var box saved_hl = na
+        var box saved_oc = na
+        var line saved_h = na
+        var line saved_l = na
+        var label p = na
+        var label saved_p = na
+
+        // Forecast positions
+        var box forecast_oc = na
+        var box forecast_hl = na
+        var line forecast_h = na
+        var line forecast_l = na
+        var label forecast_p = na
+
+        index_offset    = 1
+        index_x11       = ta.valuewhen(ta.change(time(_htf)), bar_index, 1)
+        index_x1        = ta.valuewhen(ta.change(time(_htf)), bar_index, 0)
+        index_x2        = ((2 * index_x1) - index_x11)
+        forecast_w  = math.abs(index_x2 - index_x1)
+        forecast_x1 = index_x2
+        forecast_x2 = math.min(forecast_x1 + forecast_w, bar_index + 499)
+        forecast_x3 = forecast_x1 + math.ceil(forecast_w / 2)
+
+        // Label
+        v_note = f_label(_htf, H0[shift] - L0[shift])
+        
+        // wick
+        wick_thickness = i_htf_wick_thickness
+        wick_transp = i_htf_wick_transp
+
+        if ta.change(time(_htf))
+            box.delete(hl)
+            box.delete(oc)
+            label.delete(p)
+            label.delete(forecast_p)
+            line.delete(h)
+            line.delete(l)
+
+            // New only / All / Shift
+            if _access == t_htf_access_option1 or _access == t_htf_access_option3 or _access == t_htf_access_option4
+                if _display == t_htf_display_option3 or _display == t_htf_display_option1
+                    hl := f_candle(index_x1, H0[shift], index_x2-index_offset, L0[shift], color01[shift], color.new(color0[shift], i_hl_bg_transp), _width, line.style_dotted, xloc.bar_index)
+                if _display == t_htf_display_option2 or _display == t_htf_display_option1
+                    oc := f_candle(index_x1, O0[shift], index_x2-index_offset, C0[shift], color01[shift], color.new(color0[shift], i_oc0_bg_transp), _width, line.style_solid, xloc.bar_index)
+                if _show_labels
+                    p := label.new(index_x1, L0[shift], v_note, style=i_label_position, color=c_none, textcolor=color.new(color01[shift], i_label_transp), size=i_label_size, xloc=xloc.bar_index)
+                if _show_wick
+                    wick_x = ((index_x2-index_offset)-index_x1) / 2 + index_x1
+                    h := line.new(wick_x, H0[shift], wick_x, math.max(O0[shift], C0[shift]), color=color.new(color01[shift], wick_transp), width=wick_thickness, xloc=xloc.bar_index)
+                    l := line.new(wick_x, L0[shift], wick_x, math.min(O0[shift], C0[shift]), color=color.new(color01[shift], wick_transp), width=wick_thickness, xloc=xloc.bar_index)
+
+                plot_o := O0[shift], plot_c := C0[shift]
+                plot_h := H0[shift], plot_l := L0[shift]
+
+            // Previous only / All / Shift
+            if _access == t_htf_access_option2 or _access == t_htf_access_option3 or _access == t_htf_access_option4
+                if _display == t_htf_display_option3 or _display == t_htf_display_option1
+                    saved_hl := f_candle(index_x11, H1[shift], index_x1-index_offset, L1[shift], color11[shift], color.new(color1[shift], i_hl_bg_transp), _width, line.style_dotted, xloc.bar_index)
+                if _display == t_htf_display_option2 or _display == t_htf_display_option1
+                    saved_oc := f_candle(index_x11, O1[shift], index_x1-index_offset, C1[shift], color11[shift], color.new(color1[shift], i_oc1_bg_transp), _width, line.style_solid, xloc.bar_index)
+                if _show_labels
+                    saved_p := label.new(index_x11, L1[shift], f_label(_htf, H1[shift] - L1[shift]), style=i_label_position, color=c_none, textcolor=color.new(color11[shift], i_label_transp), size=i_label_size, xloc=xloc.bar_index)
+                if _show_wick
+                    wick_x = (index_x1-index_offset-index_x11) / 2 + index_x11
+                    saved_h := line.new(wick_x, H1[shift], wick_x, math.max(O1[shift], C1[shift]), color=color.new(color11[shift], wick_transp), width=wick_thickness, xloc=xloc.bar_index)
+                    saved_l := line.new(wick_x, L1[shift], wick_x, math.min(O1[shift], C1[shift]), color=color.new(color11[shift], wick_transp), width=wick_thickness, xloc=xloc.bar_index)
+
+            // Shift
+            if _access == t_htf_access_option4
+                if _display == t_htf_display_option3 or _display == t_htf_display_option1
+                    forecast_hl := f_candle(forecast_x1, H0, forecast_x2, L0, color01, color0, _width, line.style_dotted, xloc.bar_index)
+                if _display == t_htf_display_option2 or _display == t_htf_display_option1
+                    forecast_oc := f_candle(forecast_x1, O0, forecast_x2, C0, color01, color0, _width, line.style_solid, xloc.bar_index)
+                if _show_wick
+                    forecast_h := line.new(forecast_x3, H0, forecast_x3, math.max(O0, C0), color=color.new(color01, wick_transp), width=wick_thickness, xloc=xloc.bar_index)
+                    forecast_l := line.new(forecast_x3, L0, forecast_x3, math.min(O0, C0), color=color.new(color01, wick_transp), width=wick_thickness, xloc=xloc.bar_index)
+                if _show_labels
+                    forecast_p := label.new(forecast_x1, L0, v_note, style=i_label_position, color=c_none, textcolor=color.new(color01, i_label_transp), size=i_label_size, xloc=xloc.bar_index)
+
+                box.delete(forecast_oc[1])
+                box.delete(forecast_hl[1])
+                line.delete(forecast_l[1])
+                line.delete(forecast_h[1])
+                
+            // Previous only
+            if _access == t_htf_access_option2
+                box.delete(saved_hl[1])
+                box.delete(saved_oc[1])
+                line.delete(saved_h[1])
+                line.delete(saved_l[1])
+                label.delete(saved_p[1])
+                
+                if _extend
+                    box.set_extend(saved_hl, extend.right)
+                    box.set_extend(saved_oc, extend.right)
+
+                plot_o := O1[shift], plot_c := C1[shift]
+                plot_h := H1[shift], plot_l := L1[shift]
+
+            true
+        else
+            if _access == t_htf_access_option1 or _access == t_htf_access_option3
+                // Candle
+                box.set_top(hl, H0)
+                box.set_bottom(hl, L0)
+                box.set_bgcolor(hl, color.new(color0, i_hl_bg_transp))
+                box.set_border_color(hl, color01)
+            
+                box.set_top(oc, math.max(O0, C0))
+                box.set_bottom(oc, math.min(O0, C0))
+                box.set_bgcolor(oc, color.new(color0, i_oc0_bg_transp))
+                box.set_border_color(oc, color01)
+                
+                // Wick
+                line.set_y1(h, H0)
+                line.set_y2(h, math.max(O0, C0))
+                line.set_color(h, color.new(color01, wick_transp))
+                
+                line.set_y1(l, L0)
+                line.set_y2(l, math.min(O0, C0))
+                line.set_color(l, color.new(color01, wick_transp))
+    
+                if _show_labels
+                    label.set_y(p, L0)
+                    label.set_text(p, v_note)
+                    label.set_textcolor(p, color.new(color01, i_label_transp))
+
+                plot_o := O0, plot_c := C0
+                plot_h := H0, plot_l := L0
+
+            if _access == t_htf_access_option4
+                box.set_left(forecast_oc, forecast_x1)
+                box.set_right(forecast_oc, forecast_x2)
+                box.set_top(forecast_oc, math.max(O0, C0))
+                box.set_bottom(forecast_oc, math.min(O0, C0))
+                box.set_bgcolor(forecast_oc, color.new(color0, i_oc0_bg_transp))
+                box.set_border_color(forecast_oc, color01)
+
+                box.set_left(forecast_hl, forecast_x1)
+                box.set_right(forecast_hl, forecast_x2)
+                box.set_top(forecast_hl, H0)
+                box.set_bottom(forecast_hl, L0)
+                box.set_bgcolor(forecast_hl, color.new(color0, i_hl_bg_transp))
+                box.set_border_color(forecast_hl, color01)
+
+                line.set_x1(forecast_h, forecast_x3), line.set_x2(forecast_h, forecast_x3)
+                line.set_y1(forecast_h, H0)
+                line.set_y2(forecast_h, math.max(O0, C0))
+                line.set_color(forecast_h, color.new(color01, wick_transp))
+                
+                line.set_x1(forecast_l, forecast_x3), line.set_x2(forecast_l, forecast_x3)
+                line.set_y1(forecast_l, L0)
+                line.set_y2(forecast_l, math.min(O0, C0))
+                line.set_color(forecast_l, color.new(color01, wick_transp))
+
+                if _show_labels
+                    label.set_y(forecast_p, L0)
+                    label.set_text(forecast_p, v_note)
+                    label.set_textcolor(forecast_p, color.new(color01, i_label_transp))
+
+                f_render_pivots(i_forecast_pivots, false, xloc.bar_index, true, forecast_x1, forecast_x2, true)
+
+            true
+
+    [plot_o, plot_h, plot_l, plot_c, v_barcolor]
+
+[o, h, l, c, v_barcolor] = f_process_candles(i_htf_show_candle, i_htf_access, i_htf_display, htf, i_bullC, i_bearC, i_htf_bg_transp, i_htf_line_transp, i_htf_width, i_htf_extend, i_label_show, i_htf_show_wick)
+
+///////////////
+// Plotting
+///////////////
+plot(o, 'HTF Open', linewidth=2, display=display.none)
+plot(h, 'HTF High', linewidth=2, display=display.none)
+plot(l, 'HTF Low', linewidth=2, display=display.none)
+plot(c, 'HTF Close', linewidth=2, display=display.none)
+plot(close, 'Price', linewidth=1, display=display.none)
+plotshape(ta.cross(o, close) ? o : na, 'Crossed open', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape(ta.cross(h, close) ? h : na, 'Crossed high', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape(ta.cross(l, close) ? l : na, 'Crossed low', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape(ta.cross(c, close) ? c : na, 'Crossed close', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape((i_htf_access == t_htf_access_option1 or i_htf_access == t_htf_access_option3) and ta.change(h) > 0, 'New high', style=shape.labelup, color=color.blue, location=location.bottom, size=size.tiny, display=display.none)  // Work on 'new only' or 'All'
+plotshape((i_htf_access == t_htf_access_option1 or i_htf_access == t_htf_access_option3) and ta.change(l) < 0, 'New low', style=shape.labeldown, color=color.red, location=location.bottom, size=size.tiny, display=display.none)   // Work on 'new only' or 'All'
+barcolor(i_htf_show_barcolor ? v_barcolor : na)
