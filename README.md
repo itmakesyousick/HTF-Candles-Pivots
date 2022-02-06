@@ -1,4 +1,10 @@
 # HTF-Candles-Pivots
+## v12.0
+- Added an option "Expected price range".
+
+## v11.0
+- Modified a bug that the label duplicates on 5min.
+
 ## v10.0
 - Added a label on Forecast
 
