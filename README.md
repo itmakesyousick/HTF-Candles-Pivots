@@ -1,4 +1,8 @@
 # HTF-Candles-Pivots
+## Next
+- Adjusted　the "Expected price range"
+- Added averages to labels
+
 ## v12.0
 - Added an option "Expected price range".
 
