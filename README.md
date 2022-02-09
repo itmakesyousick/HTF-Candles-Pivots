@@ -1,7 +1,9 @@
 # HTF-Candles-Pivots
-## Next
-- Adjusted　the "Expected price range"
-- Added averages to labels
+## v13.0
+- Adjusted the "Expected price range".
+- Changed the "Expected price range" colors.
+- Added averages to the candle's labels.
+- Added options in Pivots label "Levels and Price" and "Price" to the Pivots labels.
 
 ## v12.0
 - Added an option "Expected price range".
