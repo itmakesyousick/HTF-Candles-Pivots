@@ -1,4 +1,8 @@
 # HTF-Candles-Pivots
+## Next
+- Added an option 'Time divisions'
+
+
 ## v13.0
 - Adjusted the "Expected price range".
 - Changed the "Expected price range" colors.
