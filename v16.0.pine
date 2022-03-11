@@ -1,0 +1,660 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © boitoki
+
+//@version=5
+indicator('HTF Candles & Pivots', 'HTF', overlay=true, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+import boitoki/AwesomeColor/4 as ac
+import boitoki/Pivots/4 as f
+
+//////////////////////
+// Define
+//////////////////////
+GP1 = 'Pivots'
+GP2 = 'General'
+GP3 = 'HTF Candle'
+GP4 = 'Forecast (Shift mode only)'
+GP5 = 'Forecast'
+GP6 = 'Expected price range'
+GP7 = 'Options'
+GP8 = 'Labels'
+icon_separator = ' • '
+
+t_PP = 'PP'
+t_R5 = 'R⁵'
+t_R4 = 'R⁴'
+t_R3 = 'R³'
+t_R2 = 'R²'
+t_R1 = 'R¹'
+t_S1 = 'S¹'
+t_S2 = 'S²'
+t_S3 = 'S³'
+t_S4 = 'S⁴'
+t_S5 = 'S⁵'
+t_BC = 'BC'
+t_TC = 'TC'
+
+f_price = '{0,number,#.#####}'
+f_pip   = '{0,number,#.#} pips'
+f_pip_  = '{0,number,#.#}'
+
+maximum_x = bar_index + 500
+
+//////////////////////
+// Functions
+//////////////////////
+f_if (_cond, _a, _b) => _cond ? _a : _b
+
+f_pipfy (_v) => _v / (syminfo.mintick * 10)
+
+f_pricefy (_p) => _p * (syminfo.mintick * 10)
+
+f_color (_name, _a, _b, _c, _d, _e, _f, _g, _h, _i) =>
+    switch _name
+        'monokai' => _a
+        'monokaipro' => _b
+        'panda' => _c
+        'gruvbox' => _d
+        'spacemacs light' => _e
+        'spacemacs dark' => _f
+        'mono' => _g
+        'tradingview' => _h
+        'custom' => _i
+        => _h
+
+//////////////////////
+// Inputs
+//////////////////////
+i_htf_type = input.string('Auto', 'Timeframe', options=['15', '30', '60', '120', '240', '360', '720', 'D', 'W', 'M', '6M', '12M', 'Auto'], group=GP2)
+i_color_name = str.lower(input.string('monokai', 'Color', options=['TradingView', 'monokai', 'monokaipro', 'panda', 'Gruvbox', 'Spacemacs light', 'Spacemacs dark', 'mono', 'custom'], inline='color', group=GP2))
+i_color_1 = input.color(color.green, '', inline='color', group=GP2)
+i_color_2 = input.color(color.red, '', inline='color', group=GP2)
+i_color_3 = input.color(color.purple, '', inline='color', group=GP2)
+i_color_4 = input.color(color.orange, '', inline='color', group=GP2)
+i_color_5 = input.color(color.blue, '', inline='color', group=GP2)
+
+// HTF Candle
+// =============
+option_access1 = "New only"
+option_access2 = "All"
+option_access3 = "Shifted forward"
+option_display1 ='Both'
+option_display2 = 'Open-Close'
+option_display3 = 'High-Low'
+i_candle_show = input.bool(true, 'Display', inline='htf_display', group=GP3)
+i_candle_display = input.string(option_display2, '', options=[option_display1, option_display2, option_display3], inline='htf_display', group=GP3)
+i_candle_thickness = input.int(2, '', minval=0, inline='htf_display', group=GP3)
+i_candle_line_transp = 10
+i_candle_bg_transp = 96
+i_candle_show_wick = input.bool(true, "Wick", inline='htf_display', group=GP3) and i_candle_show
+i_candle_show_wick := i_candle_display == option_display3 ? false : i_candle_show_wick
+i_candle_access = input.string(option_access3, "History", options=[option_access2, option_access1, option_access3], group=GP3)
+i_candle_show_hl = i_candle_display == option_display3 or i_candle_display == option_display1
+i_candle_show_oc = i_candle_display == option_display2 or i_candle_display == option_display1
+
+// Wick style
+i_candle_wick_thickness = i_candle_thickness
+i_candle_wick_transp = 3
+
+// Time division
+i_tdiv_show = input.bool(false, 'Time divisions', inline='tdiv', group=GP3)
+i_tdiv_number = input.int(6, '', options=[2, 3, 4, 5, 6], inline='tdiv', group=GP3)
+i_tdiv_thickness = 1
+i_tdiv_style = line.style_dotted
+
+// Filled candle (negative only)
+i_candle_show_fill = input.bool(false, 'Filled negative candles', group=GP3)
+
+// Bar color
+i_barcolor_show = input.bool(false, 'Bar colors', group=GP3, tooltip='When the previous high/low are exceeded. Work on \"Shifted forward\" mode') and (i_candle_access == option_access3)
+
+// Labels
+// =============
+option_candle_label1 = 'Price'
+option_candle_label2 = 'Pips'
+i_candle_label_show = input.bool(false, 'Show labels', inline='candle_labels', group=GP8)
+i_candle_label = input.string(option_candle_label1, '', options=[option_candle_label1, option_candle_label2], inline='candle_labels', group=GP8)
+i_candle_label_size = input.string(size.small, '', options=[size.auto, size.tiny, size.small, size.normal, size.large, size.huge], inline='candle_labels', group=GP8)
+i_candle_label_position = label.style_label_upper_left
+i_labels_show_price = i_candle_label == option_candle_label1
+i_labels_show_pips = i_candle_label == option_candle_label2
+i_labels_show_avg = input.bool(false, 'Avg', inline='labels_options', group=GP8)
+i_labels_show_day = input.bool(false, 'Day', inline='labels_options', group=GP8)
+
+
+// Pivots
+// =============
+option_pivot1 = 'All'
+option_pivot2 = 'New only'
+option_pivot3 = 'None'
+option_pivot_label1 = 'Levels'
+option_pivot_label2 = 'Levels & Price'
+option_pivot_label3 = 'Price'
+i_pivots_show = input.bool(false, 'Display', inline='pivots_display', group=GP1)
+i_pivots_type = input.string('Traditional', '', options=['Traditional', 'Fibonacci', 'Woodie', 'Classic', 'DM', 'Camarilla', 'Expected Pivot Points'], inline='pivots_display', group=GP1)
+i_pivots_show_cpr = input.bool(false, 'CPR', inline='pivots_display', group=GP1) and i_pivots_show
+i_pivots_history = input.string(option_pivot2, 'History ', options=[option_pivot1, option_pivot2], inline='pivot_history', group=GP1)
+i_pivots_show_forecast = input.bool(false, 'Forecast', inline='pivot_history', group=GP1)
+i_pivots_line_style = input.string(line.style_dotted, 'Line style ', options=[line.style_solid, line.style_dotted, line.style_dashed], inline='pivot_line_style', group=GP1)
+i_pivots_show_zone = input.bool(true, 'BG', inline='pivot_line_style', group=GP1) and not (i_pivots_type == 'Traditional' or i_pivots_type == 'DM')
+i_pivots_line_thickness = 1
+i_pivots_line_transp = 30
+i_pivots_label_show = input.bool(false, 'Show labels', inline='pivot_label', group=GP1)
+i_pivots_label_position = input.string('Left', '', options=['Right', 'Left'], inline='pivot_label', group=GP1)
+i_pivots_label = input.string(option_pivot_label1, '', options=[option_pivot_label1, option_pivot_label3, option_pivot_label2], inline='pivot_label', group=GP1)
+i_pivots_zone_transp = 96
+i_pivots_show_history = i_pivots_history == option_pivot1
+
+// Expected price range
+// =====================
+i_expected_pricerange_show = input.bool(false, 'Show', inline='pricerange', group=GP6)
+i_expected_pricerange_history = str.lower(input.string('New only', '', options=['All', 'New only', 'Predict next'], inline='pricerange', group=GP6))
+i_expected_pricerange_next = i_expected_pricerange_history == 'predict next'
+i_expected_pricerange_shifted = i_expected_pricerange_next
+i_expected_pricerange_2x = i_expected_pricerange_next
+i_expected_pricerange_transp = 97
+
+// Options
+// =========
+i_filledarea_show = false //input.bool(false, 'Filled area', group=GP7)
+
+//////////////////////
+// Colors
+//////////////////////
+c_none  = color.new(color.black, 100)
+c_bull  = f_color(i_color_name, ac.monokai('green'),    ac.monokaipro('green'),     ac.panda('green'),  ac.gruvbox('green'),    ac.spacemacs_light('green'),    ac.spacemacs_dark('green'),   ac.panda('light-gray'),   ac.tradingview_flag('green'),   i_color_1)
+c_bear  = f_color(i_color_name, ac.monokai('pink'),     ac.monokaipro('pink'),      ac.panda('red'),    ac.gruvbox('red'),      ac.spacemacs_light('red'),      ac.spacemacs_dark('red'),     ac.panda('dark-gray'),    ac.tradingview_flag('red'),     i_color_2)
+c_PP    = f_color(i_color_name, ac.monokai('purple'),   ac.monokaipro('purple'),    ac.panda('purple'), ac.gruvbox('purple'),   ac.spacemacs_light('magenta'),  ac.spacemacs_dark('magenta'), ac.panda('dark-gray'),    ac.tradingview_flag('purple'),  i_color_3)
+c_RX    = f_color(i_color_name, ac.monokai('orange'),   ac.monokaipro('orange'),    ac.panda('orange'), ac.gruvbox('orange'),   ac.spacemacs_light('yellow'),   ac.spacemacs_dark('yellow'),  ac.panda('gray'),         ac.tradingview_flag('orange'),  i_color_4)
+c_SX    = c_RX
+c_CPR   = c_PP
+c_pricerange_upper = f_color(i_color_name, ac.monokai('blue'), ac.monokaipro('blue'), ac.panda('blue'), ac.gruvbox('blue'), ac.spacemacs_light('blue'), ac.spacemacs_dark('blue'), ac.panda('light-gray'), ac.tradingview_flag('blue'), i_color_5)
+c_pricerange_lower = c_pricerange_upper
+c_pricerange_base  = c_pricerange_upper
+
+//////////////////////
+// Calc
+//////////////////////
+htf = i_htf_type == 'Auto' ? timeframe.isintraday ? timeframe.multiplier < 60 ? 'D' : timeframe.multiplier < 240 ? 'W' : 'M' : timeframe.period == 'D' ? '6M' : '12M' : i_htf_type
+
+
+//////////////////////
+// Plotting
+//////////////////////
+f_render_pivots_label (_show, _x, _y, _text, _color, _style, _xloc, _show_history) =>
+    var label my_label = na
+    
+    if _show
+        v_price = str.format('{0,number,#.###}', _y)
+        v_text = ''
+
+        if i_pivots_label == option_pivot_label1
+            v_text := _text
+        else if i_pivots_label == option_pivot_label2
+            v_text := _text + ' (' + v_price + ')'
+        else if i_pivots_label == option_pivot_label3
+            v_text := v_price
+
+        my_label := label.new(_x, _y, v_text, textcolor=_color, color=c_none, style=_style, size=size.normal, xloc=_xloc)
+
+        if not _show_history
+            label.delete(my_label[1])
+    
+f_render_pivots_line (_show, _x1, _y, _x2, _width, _color, _style, _xloc, _show_history, _should_delete) =>
+    var line my_line = na
+    
+    if _show and _y > 0
+        my_line := line.new(_x1, _y, _x2, _y, width=_width, color=color.new(_color, i_pivots_line_transp), style=_style, xloc=_xloc)
+    
+        if (not _show_history) or _should_delete
+            line.delete(my_line[1])
+
+    my_line
+
+f_render_pivots_box (_show, _x1, _y1, _x2, _y2, _color, _xloc, _show_history, _should_delete) =>
+    var box my_box = na
+    
+    if _show
+        my_box := box.new(_x1, _y1, _x2, _y2, bgcolor=color.new(_color, i_pivots_zone_transp), border_color=c_none, xloc=_xloc)
+
+        if (not _show_history) or _should_delete
+            box.delete(my_box[1])
+
+f_render_pivots (_show, _show_history, _xloc, _update=false, _x1=0, _x2=0, _should_delete=false) =>
+    if _show
+        time_x1  = 0
+        time_x2  = 0
+        offset = 0
+
+        if _xloc == xloc.bar_time
+            time_x11  = ta.valuewhen(ta.change(time(htf)), time, 1)
+            time_x1  := ta.valuewhen(ta.change(time(htf)), time, 0)
+            offset   := math.round(ta.change(time))
+            time_x2  := (2 * time_x1 - time_x11) - offset
+        else
+            time_x1  := _x1
+            time_x2  := _x2
+    
+        [O1, H1, L1, C1, O0, H0, L0, C0] = f.htf_ohlc(htf)
+
+        O = f_if(_update, O0, O1)
+        H = f_if(_update, H0, H1)
+        L = f_if(_update, L0, L1)
+        C = f_if(_update, C0, C1)
+
+        [PP, R1, S1, R2, S2, R3, S3, R4, S4, R5, S5] = f.pivots(i_pivots_type, O, H, L, C)
+        [BC, TC, CPR] = f.cpr(H, L, C)
+
+        if ta.change(time(htf)) or _update
+            // Lines
+            f_render_pivots_line(true, time_x1, PP, time_x2, math.max(2, i_pivots_line_thickness), c_PP, line.style_solid, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, R1, time_x2, i_pivots_line_thickness, c_RX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, R2, time_x2, i_pivots_line_thickness, c_RX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, R3, time_x2, i_pivots_line_thickness, c_RX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, R4, time_x2, i_pivots_line_thickness, c_RX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, R5, time_x2, i_pivots_line_thickness, c_RX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, S1, time_x2, i_pivots_line_thickness, c_SX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, S2, time_x2, i_pivots_line_thickness, c_SX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, S3, time_x2, i_pivots_line_thickness, c_SX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, S4, time_x2, i_pivots_line_thickness, c_SX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(true, time_x1, S5, time_x2, i_pivots_line_thickness, c_SX, i_pivots_line_style, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(i_pivots_show_cpr, time_x1, BC, time_x2, 1, c_CPR, line.style_dotted, _xloc, _show_history, _should_delete)
+            f_render_pivots_line(i_pivots_show_cpr, time_x1, TC, time_x2, 1, c_CPR, line.style_dotted, _xloc, _show_history, _should_delete)
+            
+            // Boxes
+            if i_pivots_show_zone
+                f_render_pivots_box(true, time_x1, R1, time_x2, R2, c_RX, _xloc, _show_history, _should_delete)
+                f_render_pivots_box(true, time_x1, R3, time_x2, R4, c_RX, _xloc, _show_history, _should_delete)
+                f_render_pivots_box(true, time_x1, S1, time_x2, S2, c_SX, _xloc, _show_history, _should_delete)
+                f_render_pivots_box(true, time_x1, S3, time_x2, S4, c_SX, _xloc, _show_history, _should_delete)
+                f_render_pivots_box(i_pivots_show_cpr, time_x1, BC, time_x2, TC, c_CPR, _xloc, _show_history, _should_delete)
+    
+            // Labels
+            if i_pivots_label_show
+                label_x     = i_pivots_label_position == 'Left' ? time_x1 : time_x2
+                label_style = i_pivots_label_position == 'Left' ? label.style_label_right : label.style_label_left
+                f_render_pivots_label(true, label_x, PP, t_PP, color.new(c_PP, 20), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, R5, t_R5, color.new(c_RX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, R4, t_R4, color.new(c_RX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, R3, t_R3, color.new(c_RX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, R2, t_R2, color.new(c_RX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, R1, t_R1, color.new(c_RX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, S1, t_S1, color.new(c_SX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, S2, t_S2, color.new(c_SX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, S3, t_S3, color.new(c_SX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, S4, t_S4, color.new(c_SX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(true, label_x, S5, t_S5, color.new(c_SX, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(i_pivots_show_cpr, label_x, BC, t_BC, color.new(c_CPR, 30), label_style, _xloc, _show_history)
+                f_render_pivots_label(i_pivots_show_cpr, label_x, TC, t_TC, color.new(c_CPR, 30), label_style, _xloc, _show_history)
+
+f_render_pivots(i_pivots_show, i_pivots_show_history, xloc.bar_time, false, 0, 0, false)
+
+///////////////
+// HTF Candle
+///////////////
+f_get_day (n) =>
+    switch n
+        1 => 'Sun'
+        2 => 'Mon'
+        3 => 'Tue'
+        4 => 'Wed'
+        5 => 'Thu'
+        6 => 'Fri'
+        7 => 'Sat'
+
+f_label (_name, _chg, _avg) =>
+    t_day = dayofweek(time)
+    t = array.new_string(1, _name)
+
+    if i_labels_show_price and i_labels_show_avg
+        array.push(t, str.format(f_price, _chg) + ' (' + str.format(f_price, _avg) + ')')
+    else if i_labels_show_price
+        array.push(t, str.format(f_price, _chg))
+
+    if i_labels_show_pips and i_labels_show_avg
+        array.push(t, str.format(f_pip, f_pipfy(_chg)) + ' (' + str.format(f_pip_, f_pipfy(_avg)) + ')')
+    else if i_labels_show_pips
+        array.push(t, str.format(f_pip, f_pipfy(_chg)))
+    
+    if i_labels_show_day
+        array.push(t, f_get_day(dayofweek))
+
+    array.join(t, icon_separator)
+
+f_candle (_x1, _y1, _x2, _y2, _border_color, _bgcolor, _width, _style, _xloc) =>
+    box.new(_x1, _y1, _x2, _y2, _border_color, _width, _style, extend.none, _xloc, _bgcolor)
+
+f_pricerange_avg (_avg, _lookback) =>
+    math.avg(_avg, _avg[_lookback], _avg[_lookback*2], _avg[_lookback*3])
+
+f_render_tdiv (_x, _y1, _y2, _color, _transp, _show) =>
+    _show ? line.new(_x, _y1, _x, _y2, color=color.new(_color, _transp), width=i_tdiv_thickness, style=i_tdiv_style) : na
+
+f_process_candles (_show, _access, _display, _htf, _trans, _btransp, _width, _show_labels, _show_wick, _show_expected) =>
+    // for exports variables
+    var plot_o = 0.0, var plot_o0 = 0.0
+    var plot_c = 0.0, var plot_c0 = 0.0
+    var plot_h = 0.0, var plot_h0 = 0.0
+    var plot_l = 0.0, var plot_l0 = 0.0
+    var price_range = 0.0
+    var c_barcolor = c_none
+    htf_changed = ta.change(time(_htf))
+
+    if _show
+        shift = _access == option_access3 ? 1 : 0
+    
+        [O1, H1, L1, C1, O0, H0, L0, C0] = f.htf_ohlc(_htf)
+
+        color0  = O0 < C0 ? color.new(c_bull, _trans)   : color.new(c_bear, _trans)
+        color01 = O0 < C0 ? color.new(c_bull, _btransp) : color.new(c_bear, _btransp)
+        color1  = O1 < C1 ? color.new(c_bull, _trans)   : color.new(c_bear, _trans)
+        color11 = O1 < C1 ? color.new(c_bull, _btransp) : color.new(c_bear, _btransp)
+        
+        i_hl_bg_transp  = (i_candle_thickness == 0 and i_candle_show_hl) ? 90  : 96
+        i_oc0_bg_transp = (i_candle_thickness == 0 and i_candle_show_hl) ? 100 : (i_candle_thickness == 0) ? 90 : 94
+        i_oc1_bg_transp = (i_candle_thickness == 0 and i_candle_show_hl) ? 100 : (i_candle_thickness == 0) ? 90 : 94
+        i_label_transp  = 10
+
+        if i_candle_show_fill
+            i_oc0_bg_transp := O0[shift] > C0[shift] ? 0 : i_oc0_bg_transp
+            i_oc1_bg_transp := O1[shift] > C1[shift] ? 0 : i_oc1_bg_transp
+
+        c_barcolor := hlc3 > H1[shift] ? c_bull : hlc3 < L1[shift] ? c_bear : na
+
+        var box hl = na
+        var box oc = na
+        var line h = na
+        var line l = na
+        var box saved_hl = na
+        var box saved_oc = na
+        var line saved_h = na
+        var line saved_l = na
+        var label p = na
+        var label saved_p = na
+        var line split_1 = na
+        var line split_2 = na
+        var line split_3 = na
+        var line split_4 = na
+        var line split_5 = na
+
+        // Forecast positions
+        var box forecast_oc = na
+        var box forecast_hl = na
+        var line forecast_h = na
+        var line forecast_l = na
+        var label forecast_p = na
+        var line forecast_split_1 = na
+        var line forecast_split_2 = na
+        var line forecast_split_3 = na
+        var line forecast_split_4 = na
+        var line forecast_split_5 = na
+
+        // Expected price range
+        var line expected_base = na
+        var line expected_upper = na
+        var linefill expected_upperfill = na
+        var line expected_lower = na
+        var linefill expected_lowerfill = na
+
+        // Positions
+        index_offset    = 1
+        index_x11       = ta.valuewhen(htf_changed, bar_index, 1)
+        index_x1        = ta.valuewhen(htf_changed, bar_index, 0)
+        index_x2        = ((2 * index_x1) - index_x11)
+        index_x22       = index_x2 - index_offset
+        index_w         = math.abs(index_x2 - index_x1)
+        forecast_x1 = index_x2
+        forecast_x2 = math.min(forecast_x1 + index_w, bar_index + 499)
+        forecast_x3 = forecast_x1 + math.ceil(index_w * 0.5)
+        forecast_x4 = forecast_x1 + math.ceil(index_w * 0.67)
+
+        expected_avg = f_pricerange_avg(price_range, index_w)
+        expected_scale = i_expected_pricerange_2x ? 1 : 0.5
+        expected_pivot = 'today'
+        expected_x1 = i_expected_pricerange_shifted ? forecast_x1 : index_x1
+        expected_x2 = i_expected_pricerange_shifted ? forecast_x2 : index_x22
+        expected_cy = expected_pivot == 'today' ? math.avg(H0, L0) : math.avg(H1, L1)
+        expected_y1 = expected_cy + (expected_avg * expected_scale)
+        expected_y2 = expected_cy - (expected_avg * expected_scale)
+
+        // Label
+        v_note0 = f_label(_htf, H0[shift] - L0[shift], expected_avg)
+        v_note1 = f_label(_htf, H1[shift] - L1[shift], expected_avg)
+
+        // wick
+        wick_thickness  = i_candle_wick_thickness
+        wick_transp     = i_candle_wick_transp
+
+        if htf_changed
+            box.delete(hl)
+            box.delete(oc)
+            label.delete(p)
+            label.delete(forecast_p)
+            line.delete(h)
+            line.delete(l)
+            line.delete(split_1)
+            line.delete(split_2)
+            line.delete(split_3)
+            line.delete(split_4)
+            line.delete(split_5)
+
+            price_range := (H1 - L1)
+
+            // New only / All / Shifted
+            if _access == option_access1 or _access == option_access2 or _access == option_access3
+                if i_candle_show_hl
+                    hl := f_candle(index_x1, H0[shift], index_x22, L0[shift], color01[shift], color.new(color0[shift], i_hl_bg_transp), _width, line.style_dotted, xloc.bar_index)
+                if i_candle_show_oc
+                    oc := f_candle(index_x1, O0[shift], index_x22, C0[shift], color01[shift], color.new(color0[shift], i_oc0_bg_transp), _width, line.style_solid, xloc.bar_index)
+                if _show_labels
+                    p := label.new(index_x1, L0[shift], v_note0, style=i_candle_label_position, color=c_none, textcolor=color.new(color01[shift], i_label_transp), size=i_candle_label_size)
+                if _show_wick
+                    wick_x = math.round((index_x22-index_x1) / 2) + index_x1
+                    h := line.new(wick_x, H0[shift], wick_x, math.max(O0[shift], C0[shift]), color=color.new(color01[shift], wick_transp), width=wick_thickness)
+                    l := line.new(wick_x, L0[shift], wick_x, math.min(O0[shift], C0[shift]), color=color.new(color01[shift], wick_transp), width=wick_thickness)
+                
+                if i_tdiv_show
+                    split_x1 = math.round((index_x22-index_x1) * (1/i_tdiv_number*1)) + index_x1
+                    split_x2 = math.round((index_x22-index_x1) * (1/i_tdiv_number*2)) + index_x1
+                    split_x3 = math.round((index_x22-index_x1) * (1/i_tdiv_number*3)) + index_x1
+                    split_x4 = math.round((index_x22-index_x1) * (1/i_tdiv_number*4)) + index_x1
+                    split_x5 = math.round((index_x22-index_x1) * (1/i_tdiv_number*5)) + index_x1
+                    split_1 := f_render_tdiv(split_x1, H0[shift], L0[shift], color01[shift], wick_transp, true)
+                    split_2 := f_render_tdiv(split_x2, H0[shift], L0[shift], color01[shift], wick_transp, i_tdiv_number > 2)
+                    split_3 := f_render_tdiv(split_x3, H0[shift], L0[shift], color01[shift], wick_transp, i_tdiv_number > 3)
+                    split_4 := f_render_tdiv(split_x4, H0[shift], L0[shift], color01[shift], wick_transp, i_tdiv_number > 4)
+                    split_5 := f_render_tdiv(split_x5, H0[shift], L0[shift], color01[shift], wick_transp, i_tdiv_number > 5)
+
+                plot_o := O0[shift], plot_c := C0[shift]
+                plot_h := H0[shift], plot_l := L0[shift]
+                plot_o0 := O0, plot_c0 := C0
+                plot_h0 := H0, plot_l0 := L0
+
+            // All / Shifted
+            if _access == option_access2 or _access == option_access3
+                if i_candle_show_hl
+                    saved_hl := f_candle(index_x11, H1[shift], index_x1-index_offset, L1[shift], color11[shift], color.new(color1[shift], i_hl_bg_transp), _width, line.style_dotted, xloc.bar_index)
+                if i_candle_show_oc
+                    saved_oc := f_candle(index_x11, O1[shift], index_x1-index_offset, C1[shift], color11[shift], color.new(color1[shift], i_oc1_bg_transp), _width, line.style_solid, xloc.bar_index)
+                if _show_labels
+                    saved_p := label.new(index_x11, L1[shift], v_note1, style=i_candle_label_position, color=c_none, textcolor=color.new(color11[shift], i_label_transp), size=i_candle_label_size)
+                if _show_wick
+                    wick_x = math.round((index_x1-index_offset-index_x11) * 0.5) + index_x11
+                    saved_h := line.new(wick_x, H1[shift], wick_x, math.max(O1[shift], C1[shift]), color=color.new(color11[shift], wick_transp), width=wick_thickness)
+                    saved_l := line.new(wick_x, L1[shift], wick_x, math.min(O1[shift], C1[shift]), color=color.new(color11[shift], wick_transp), width=wick_thickness)
+
+                if i_tdiv_show
+                    split_x1 = math.round((index_x1-index_offset-index_x11) * (1/i_tdiv_number*1)) + index_x11
+                    split_x2 = math.round((index_x1-index_offset-index_x11) * (1/i_tdiv_number*2)) + index_x11
+                    split_x3 = math.round((index_x1-index_offset-index_x11) * (1/i_tdiv_number*3)) + index_x11
+                    split_x4 = math.round((index_x1-index_offset-index_x11) * (1/i_tdiv_number*4)) + index_x11
+                    split_x5 = math.round((index_x1-index_offset-index_x11) * (1/i_tdiv_number*5)) + index_x11
+                    f_render_tdiv(split_x1, H1[shift], L1[shift], color11[shift], wick_transp, true)
+                    f_render_tdiv(split_x2, H1[shift], L1[shift], color11[shift], wick_transp, i_tdiv_number > 2)
+                    f_render_tdiv(split_x3, H1[shift], L1[shift], color11[shift], wick_transp, i_tdiv_number > 3)
+                    f_render_tdiv(split_x4, H1[shift], L1[shift], color11[shift], wick_transp, i_tdiv_number > 4)
+                    f_render_tdiv(split_x5, H1[shift], L1[shift], color11[shift], wick_transp, i_tdiv_number > 5)
+
+            // Shifted
+            if _access == option_access3
+                if i_candle_show_hl
+                    forecast_hl := f_candle(forecast_x1, H0, forecast_x2, L0, color01, color0, _width, line.style_dotted, xloc.bar_index)
+                if i_candle_show_oc
+                    forecast_oc := f_candle(forecast_x1, O0, forecast_x2, C0, color01, color0, _width, line.style_solid, xloc.bar_index)
+                if _show_wick
+                    forecast_h := line.new(forecast_x3, H0, forecast_x3, math.max(O0, C0), color=color.new(color01, wick_transp), width=wick_thickness)
+                    forecast_l := line.new(forecast_x3, L0, forecast_x3, math.min(O0, C0), color=color.new(color01, wick_transp), width=wick_thickness)
+                if _show_labels
+                    forecast_p := label.new(forecast_x1, L0, v_note0, style=i_candle_label_position, color=c_none, textcolor=color.new(color01, i_label_transp), size=i_candle_label_size)
+
+                if i_tdiv_show
+                    split_x1 = math.min(maximum_x, math.round(index_w * (1/i_tdiv_number*1)) + forecast_x1)
+                    split_x2 = math.min(maximum_x, math.round(index_w * (1/i_tdiv_number*2)) + forecast_x1)
+                    split_x3 = math.min(maximum_x, math.round(index_w * (1/i_tdiv_number*3)) + forecast_x1)
+                    split_x4 = math.min(maximum_x, math.round(index_w * (1/i_tdiv_number*4)) + forecast_x1)
+                    split_x5 = math.min(maximum_x, math.round(index_w * (1/i_tdiv_number*5)) + forecast_x1)
+                    forecast_split_1 := f_render_tdiv(split_x1, H0, L0, color01, wick_transp, true)
+                    forecast_split_2 := f_render_tdiv(split_x2, H0, L0, color01, wick_transp, i_tdiv_number > 2)
+                    forecast_split_3 := f_render_tdiv(split_x3, H0, L0, color01, wick_transp, i_tdiv_number > 3)
+                    forecast_split_4 := f_render_tdiv(split_x4, H0, L0, color01, wick_transp, i_tdiv_number > 4)
+                    forecast_split_5 := f_render_tdiv(split_x5, H0, L0, color01, wick_transp, i_tdiv_number > 5)
+
+                if _show_expected
+                    expected_upper := line.new(expected_x1, expected_y1, expected_x2, expected_y1, width=2, color=c_pricerange_upper)
+                    expected_lower := line.new(expected_x1, expected_y2, expected_x2, expected_y2, width=2, color=c_pricerange_lower)
+                    expected_base  := line.new(expected_x1, expected_cy, expected_x2, expected_cy, width=1, color=c_pricerange_base, style=line.style_dotted)
+                    
+                    expected_upperfill := linefill.new(expected_base, expected_upper, color.new(c_pricerange_upper, i_expected_pricerange_transp))
+                    expected_lowerfill := linefill.new(expected_base, expected_lower, color.new(c_pricerange_lower, i_expected_pricerange_transp))
+                
+                box.delete(forecast_oc[1])
+                box.delete(forecast_hl[1])
+                line.delete(forecast_l[1])
+                line.delete(forecast_h[1])
+                line.delete(forecast_split_1[1])
+                line.delete(forecast_split_2[1])
+                line.delete(forecast_split_3[1])
+                line.delete(forecast_split_4[1])
+                line.delete(forecast_split_5[1])
+
+                if i_expected_pricerange_history == 'new only' or i_expected_pricerange_history == 'predict next'
+                    line.delete(expected_upper[1])
+                    line.delete(expected_lower[1])
+                    linefill.delete(expected_upperfill[1])
+                    linefill.delete(expected_lowerfill[1])
+                    line.delete(expected_base[1])
+
+            true
+        else
+            if _access == option_access1 or _access == option_access2
+                // Candle
+                box.set_top(hl, H0)
+                box.set_bottom(hl, L0)
+                box.set_bgcolor(hl, color.new(color0, i_hl_bg_transp))
+                box.set_border_color(hl, color01)
+            
+                box.set_top(oc, math.max(O0, C0))
+                box.set_bottom(oc, math.min(O0, C0))
+                box.set_bgcolor(oc, color.new(color0, i_oc0_bg_transp))
+                box.set_border_color(oc, color01)
+                
+                // Wick
+                line.set_y1(h, H0)
+                line.set_y2(h, math.max(O0, C0))
+                line.set_color(h, color.new(color01, wick_transp))
+                
+                line.set_y1(l, L0)
+                line.set_y2(l, math.min(O0, C0))
+                line.set_color(l, color.new(color01, wick_transp))
+
+                line.set_y1(split_1, H0), line.set_y2(split_1, L0)
+                line.set_y1(split_2, H0), line.set_y2(split_2, L0)
+                line.set_y1(split_3, H0), line.set_y2(split_3, L0)
+                line.set_y1(split_4, H0), line.set_y2(split_4, L0)
+                line.set_y1(split_5, H0), line.set_y2(split_5, L0)
+    
+                if _show_labels
+                    label.set_y(p, L0)
+                    label.set_text(p, v_note0)
+                    label.set_textcolor(p, color.new(color01, i_label_transp))
+
+                plot_o := O0, plot_c := C0
+                plot_h := H0, plot_l := L0
+
+            if _access == option_access3
+                box.set_left(forecast_oc, forecast_x1)
+                box.set_right(forecast_oc, forecast_x2)
+                box.set_top(forecast_oc, math.max(O0, C0))
+                box.set_bottom(forecast_oc, math.min(O0, C0))
+                box.set_bgcolor(forecast_oc, color.new(color0, i_oc0_bg_transp))
+                box.set_border_color(forecast_oc, color01)
+
+                box.set_left(forecast_hl, forecast_x1)
+                box.set_right(forecast_hl, forecast_x2)
+                box.set_top(forecast_hl, H0)
+                box.set_bottom(forecast_hl, L0)
+                box.set_bgcolor(forecast_hl, color.new(color0, i_hl_bg_transp))
+                box.set_border_color(forecast_hl, color01)
+
+                line.set_x1(forecast_h, forecast_x3), line.set_x2(forecast_h, forecast_x3)
+                line.set_y1(forecast_h, H0)
+                line.set_y2(forecast_h, math.max(O0, C0))
+                line.set_color(forecast_h, color.new(color01, wick_transp))
+                
+                line.set_x1(forecast_l, forecast_x3), line.set_x2(forecast_l, forecast_x3)
+                line.set_y1(forecast_l, L0)
+                line.set_y2(forecast_l, math.min(O0, C0))
+                line.set_color(forecast_l, color.new(color01, wick_transp))
+
+                line.set_y1(forecast_split_1, H0), line.set_y2(forecast_split_1, L0), line.set_color(forecast_split_1, color.new(color01, wick_transp))
+                line.set_y1(forecast_split_2, H0), line.set_y2(forecast_split_2, L0), line.set_color(forecast_split_2, color.new(color01, wick_transp))
+                line.set_y1(forecast_split_3, H0), line.set_y2(forecast_split_3, L0), line.set_color(forecast_split_3, color.new(color01, wick_transp))
+                line.set_y1(forecast_split_4, H0), line.set_y2(forecast_split_4, L0), line.set_color(forecast_split_4, color.new(color01, wick_transp))
+                line.set_y1(forecast_split_5, H0), line.set_y2(forecast_split_5, L0), line.set_color(forecast_split_5, color.new(color01, wick_transp))
+
+                /////////////////////////
+                // Forecast price range
+                /////////////////////////
+                line.set_y1(expected_upper, expected_y1)
+                line.set_y2(expected_upper, expected_y1)
+                line.set_x1(expected_upper, expected_x1), line.set_x2(expected_upper, expected_x2)
+
+                line.set_y1(expected_lower, expected_y2)
+                line.set_y2(expected_lower, expected_y2)
+                line.set_x1(expected_lower, expected_x1), line.set_x2(expected_lower, expected_x2)
+
+                line.set_y1(expected_base, expected_cy)
+                line.set_y2(expected_base, expected_cy)
+                line.set_x1(expected_base, expected_x1), line.set_x2(expected_base, expected_x2)
+
+                if _show_labels
+                    label.set_y(forecast_p, L0)
+                    label.set_text(forecast_p, v_note0)
+                    label.set_textcolor(forecast_p, color.new(color01, i_label_transp))
+
+                f_render_pivots(i_pivots_show_forecast, false, xloc.bar_index, true, forecast_x1, forecast_x2, true)
+
+            true
+
+    [plot_o, plot_h, plot_l, plot_c, plot_o0, plot_h0, plot_l0, plot_c0, c_barcolor, htf_changed]
+
+[o, h, l, c, o0, h0, l0, c0, c_barcolor, htf_changed] = f_process_candles(i_candle_show, i_candle_access, i_candle_display, htf, i_candle_bg_transp, i_candle_line_transp, i_candle_thickness, i_candle_label_show, i_candle_show_wick, i_expected_pricerange_show)
+
+///////////////
+// Plotting
+///////////////
+c_area = close > o0 ? c_bull : c_bear
+plotted_c = plot(close, 'Price', linewidth=1, display=display.none)
+plotted_o = plot(i_filledarea_show ? o0 : na, '', linewidth=0, display=display.none, editable=false)
+plot(o, 'HTF Open', linewidth=2, display=display.none)
+plot(h, 'HTF High', linewidth=2, display=display.none)
+plot(l, 'HTF Low', linewidth=2, display=display.none)
+plot(c, 'HTF Close', linewidth=2, display=display.none)
+fill(plotted_o, plotted_c, color.new(c_area, 90), 'Filled', editable=true)
+plotshape((not htf_changed) and ta.cross(o, close) ? o : na, 'Crossed open', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape((not htf_changed) and ta.cross(h, close) ? h : na, 'Crossed high', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape((not htf_changed) and ta.cross(l, close) ? l : na, 'Crossed low', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape((not htf_changed) and ta.cross(c, close) ? c : na, 'Crossed close', color=color.orange, style=shape.xcross, location=location.absolute, size=size.tiny, display=display.none)
+plotshape((not htf_changed) and (i_candle_access == option_access1 or i_candle_access == option_access2) and ta.change(h) > 0, 'New high', style=shape.labelup, color=color.blue, location=location.bottom, size=size.tiny, display=display.none)  // Work on 'new only' or 'All'
+plotshape((not htf_changed) and (i_candle_access == option_access1 or i_candle_access == option_access2) and ta.change(l) < 0, 'New low', style=shape.labeldown, color=color.red, location=location.bottom, size=size.tiny, display=display.none)   // Work on 'new only' or 'All'
+barcolor(i_barcolor_show ? c_barcolor : na)
