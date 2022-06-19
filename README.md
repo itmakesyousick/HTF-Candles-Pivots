@@ -2,7 +2,7 @@
 ## ドキュメント
 [https://boitoki.gitbook.io/htf-candles-and-pivots/](説明書)
 
-## ChangeLog
+## 変更履歴
 ### v17.0
 - Added an option 'Volume Profile'
 
