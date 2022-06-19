@@ -1,7 +1,9 @@
 # HTF-Candles-Pivots
-## Next
-- Added an option 'Time divisions'
+## v17.0
+- Added an option 'Volume Profile'
 
+## v14.0
+- Added an option 'Time divisions'
 
 ## v13.0
 - Adjusted the "Expected price range".
