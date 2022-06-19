@@ -1,6 +1,6 @@
 # HTF-Candles-Pivots
 ## ドキュメント
-[https://boitoki.gitbook.io/htf-candles-and-pivots/](説明書)
+[説明書](https://boitoki.gitbook.io/htf-candles-and-pivots/)
 
 ## 変更履歴
 ### v17.0
