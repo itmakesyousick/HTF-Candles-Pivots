@@ -1,5 +1,5 @@
 # HTF-Candles-Pivots
-##
+## ドキュメント
 [https://boitoki.gitbook.io/htf-candles-and-pivots/](説明書)
 
 ## ChangeLog
