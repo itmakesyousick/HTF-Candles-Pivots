@@ -3,6 +3,11 @@
 [説明書](https://boitoki.gitbook.io/htf-candles-and-pivots/)
 
 ## 変更履歴
+### WIP
+- ラベル内の曜日の調整
+- ラベルの区切りを選択式に変更（ドット、改行）
+- 出来高プロファイルの履歴モードを追加
+
 ### v17.0
 - Added an option 'Volume Profile'
 
