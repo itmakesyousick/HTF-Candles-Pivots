@@ -3,6 +3,9 @@
 [説明書](https://boitoki.gitbook.io/htf-candles-and-pivots/)
 
 ## 変更履歴
+### WIP
+- ピボットポイントに、Floorとトムデマークピボットを追加
+
 ### v21.0, v20.0
 - ラベル内の曜日の調整
 - ラベルの区切りを選択式に変更（ドット、改行）
